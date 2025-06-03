@@ -39,10 +39,11 @@ resource "yandex_compute_instance" "web-server" {
   }
 
   metadata = {
-    ssh-keys = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
+    ssh-keys = "ubuntu:${var.ssh_pub}"
+    user_data = data.template_cloudinit_config.web-server-config[count.index].rendered
   }
 
-  user_data = data.template_cloudinit_config.web-server-config[count.index].rendered
+  
 }
 
 # --- Автоматическая настройка ВМ ---
@@ -66,7 +67,7 @@ data "template_cloudinit_config" "web-server-config" {
 }
 
 # --- Целевая группа для балансировщика ---
-resource "yandex_lb_target_group" "app-target-group" {
+resource "yandex_alb_target_group" "app-target-group" {
   name      = "app-target-group"
   region_id = "ru-central1"
 
@@ -80,13 +81,13 @@ resource "yandex_lb_target_group" "app-target-group" {
 }
 
 # --- Группа бэкендов ---
-resource "yandex_lb_backend_group" "app-backend-group" {
+resource "yandex_alb_backend_group" "app-backend-group" {
   name = "app-backend-group"
 
   http_backend {
     name                  = "web-server-be"
     port                  = 80
-    target_group_id       = yandex_lb_target_group.app-target-group.id
+    target_group_id       = yandex_alb_target_group.app-target-group.id
     http2                 = false
     load_balancing_config {
       panic_threshold     = 90
@@ -105,7 +106,7 @@ resource "yandex_lb_backend_group" "app-backend-group" {
 }
 
 # --- HTTP-роутер ---
-resource "yandex_lb_http_router" "app-router" {
+resource "yandex_alb_http_router" "app-router" {
   name = "app-router"
 
   route {
@@ -114,7 +115,7 @@ resource "yandex_lb_http_router" "app-router" {
       http_matcher {
         no_match_action {
           backend_group {
-            backend_group_id = yandex_lb_backend_group.app-backend-group.id
+            backend_group_id = yandex_alb_backend_group.app-backend-group.id
           }
         }
       }
@@ -132,14 +133,14 @@ resource "yandex_certificatemanager_certificate" "app-tls" {
 }
 
 # --- Балансировщик нагрузки (HTTPS) ---
-resource "yandex_lb_listener" "app-listener" {
+resource "yandex_alb_listener" "app-listener" {
   name = "app-listener"
   external_address_spec {
     ip_version = "ipv4"
   }
 
   ssl_certificate_ids = [yandex_certificatemanager_certificate.app-tls.id]
-  http_router_id      = yandex_lb_http_router.app-router.id
+  http_router_id      = yandex_alb_http_router.app-router.id
 }
 
 # --- База данных PostgreSQL ---
@@ -149,10 +150,12 @@ resource "yandex_mdb_postgresql_cluster" "app-db" {
   network_id          = yandex_vpc_network.app-network.id
   version             = "14"
 
-  resources {
-    resource_preset_id = "s2.micro"
-    disk_size          = 10
-    disk_type_id       = "network-hdd"
+  config {
+    resources {
+      resource_preset_id = "s2.micro"
+      disk_size          = 10
+      disk_type_id       = "network-hdd"
+    }
   }
 
   database {
