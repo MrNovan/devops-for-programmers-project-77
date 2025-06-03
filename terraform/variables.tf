@@ -10,3 +10,7 @@ variable "cloud_id" {
 variable "folder_id" {
   type = string
 }
+
+variable "ssh_pub" {
+  type    = string
+}

@@ -87,7 +87,7 @@ resource "yandex_alb_backend_group" "app-backend-group" {
   http_backend {
     name                  = "web-server-be"
     port                  = 80
-    target_group_id       = yandex_alb_target_group.app-target-group.id
+    target_group_ids       = yandex_alb_target_group.app-target-group.id
     http2                 = false
     load_balancing_config {
       panic_threshold     = 90
@@ -97,7 +97,7 @@ resource "yandex_alb_backend_group" "app-backend-group" {
       interval            = "2s"
       healthy_threshold   = 2
       unhealthy_threshold = 2
-      http_health_check {
+      http_healthcheck {
         path                = "/"
         port                = 80
       }
@@ -109,26 +109,21 @@ resource "yandex_alb_backend_group" "app-backend-group" {
 resource "yandex_alb_http_router" "app-router" {
   name = "app-router"
 
-  route {
-    name = "default-route"
-    http_route {
-      http_matcher {
-        no_match_action {
-          backend_group {
-            backend_group_id = yandex_alb_backend_group.app-backend-group.id
+  virtual_host {
+    name = "default-vhost"
+
+    route {
+      name = "default-route"
+      http_route {
+        http_matcher {
+          no_match_action {
+            backend_group {
+              backend_group_id = yandex_alb_backend_group.app-backend-group.id
+            }
           }
         }
       }
     }
-  }
-}
-
-# --- SSL-сертификат (пример, можно заменить на Let's Encrypt) ---
-resource "yandex_certificatemanager_certificate" "app-tls" {
-  name = "app-tls-cert"
-  self_managed {
-    certificate = file("cert.pem")
-    private_key = file("key.pem")
   }
 }
 
