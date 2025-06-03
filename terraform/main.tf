@@ -69,13 +69,13 @@ data "template_cloudinit_config" "web-server-config" {
 # --- Целевая группа для балансировщика ---
 resource "yandex_alb_target_group" "app-target-group" {
   name      = "app-target-group"
-  region_id = "ru-central1"
+  region = "ru-central1"
 
   dynamic "target" {
     for_each = yandex_compute_instance.web-server.*.network_interface.0.ip_address
     content {
       subnet_id = yandex_vpc_subnet.app-subnet.id
-      address   = target.value
+      ip_address   = target.value
     }
   }
 }
@@ -108,18 +108,19 @@ resource "yandex_alb_backend_group" "app-backend-group" {
 # --- HTTP-роутер ---
 resource "yandex_alb_http_router" "app-router" {
   name = "app-router"
+}
 
-  virtual_host {
-    name = "default-vhost"
+resource "yandex_alb_virtual_host" "app-vhost" {
+  http_router_id = yandex_alb_http_router.app-router.id
+  name           = "default-host"
 
-    route {
-      name = "default-route"
-      http_route {
-        http_matcher {
-          no_match_action {
-            backend_group {
-              backend_group_id = yandex_alb_backend_group.app-backend-group.id
-            }
+  route {
+    name = "default-route"
+    http_route {
+      http_matcher {
+        no_match_action {
+          backend_group {
+            backend_group_id = yandex_alb_backend_group.app-backend-group.id
           }
         }
       }
@@ -143,9 +144,10 @@ resource "yandex_mdb_postgresql_cluster" "app-db" {
   name                = "app-db"
   environment         = "PRESTABLE"
   network_id          = yandex_vpc_network.app-network.id
-  version             = "14"
 
   config {
+    version             = "14"
+
     resources {
       resource_preset_id = "s2.micro"
       disk_size          = 10
@@ -163,7 +165,7 @@ resource "yandex_mdb_postgresql_cluster" "app-db" {
     password = "your-secret-password"
     permission {
       database_name = "app_db"
-      roles         = ["ALL"]
+      permissions         = ["ALL"]
     }
   }
 
