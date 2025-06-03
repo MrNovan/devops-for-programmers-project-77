@@ -69,7 +69,6 @@ data "template_cloudinit_config" "web-server-config" {
 # --- Целевая группа для балансировщика ---
 resource "yandex_alb_target_group" "app-target-group" {
   name      = "app-target-group"
-  region = "ru-central1"
 
   dynamic "target" {
     for_each = yandex_compute_instance.web-server.*.network_interface.0.ip_address
@@ -111,13 +110,13 @@ resource "yandex_alb_http_router" "app-router" {
 }
 
 resource "yandex_alb_virtual_host" "app-vhost" {
-  http_router_id = yandex_alb_http_router.app-router.id
   name           = "default-host"
+  http_router_id = yandex_alb_http_router.app-router.id
 
   route {
     name = "default-route"
     http_route {
-      http_matcher {
+      http_match {
         no_match_action {
           backend_group {
             backend_group_id = yandex_alb_backend_group.app-backend-group.id
@@ -141,12 +140,12 @@ resource "yandex_alb_listener" "app-listener" {
 
 # --- База данных PostgreSQL ---
 resource "yandex_mdb_postgresql_cluster" "app-db" {
-  name                = "app-db"
-  environment         = "PRESTABLE"
-  network_id          = yandex_vpc_network.app-network.id
+  name        = "app-db"
+  environment = "PRESTABLE"
+  network_id  = yandex_vpc_network.app-network.id
 
   config {
-    version             = "14"
+    version = "14"
 
     resources {
       resource_preset_id = "s2.micro"
@@ -155,22 +154,24 @@ resource "yandex_mdb_postgresql_cluster" "app-db" {
     }
   }
 
+  host {
+    zone      = "ru-central1-a"
+    subnet_id = yandex_vpc_subnet.app-subnet.id
+  }
+
   database {
     name  = "app_db"
     owner = "pg-user"
   }
+}
 
-  user {
-    name     = "pg-user"
-    password = "your-secret-password"
-    permission {
-      database_name = "app_db"
-      permissions         = ["ALL"]
-    }
-  }
+resource "yandex_mdb_postgresql_user" "pg-user" {
+  name     = "pg-user"
+  cluster_id = yandex_mdb_postgresql_cluster.app-db.id
+  password = "your-secret-password"
 
-  host {
-    zone      = "ru-central1-a"
-    subnet_id = yandex_vpc_subnet.app-subnet.id
+  permission {
+    database_name = "app_db"
+    roles         = ["OWNER", "CONNECT"]
   }
 }
