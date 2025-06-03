@@ -1,0 +1,77 @@
+---
+- name: Setup Redmine Application
+  hosts: all
+  become: true
+
+  pre_tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install required Python libraries
+      ansible.builtin.pip:
+        name:
+          - requests
+          - docker
+        executable: /opt/venv/bin/pip3
+
+    - name: Create Redmine data directory
+      ansible.builtin.file:
+        path: "/usr/src/redmine/files"
+        state: directory
+        mode: '0755'
+
+    - name: Create Redmine config directory
+      ansible.builtin.file:
+        path: "/opt/redmine"
+        state: directory
+        mode: '0755'
+
+  roles:
+    - role: geerlingguy.pip
+    - role: geerlingguy.docker
+
+  tasks:
+    - name: Stop and remove Redmine container (if exists)
+      community.docker.docker_container:
+        name: redmine
+        state: absent
+        force_kill: true
+      environment:
+        ansible_python_interpreter: /usr/bin/python3
+      tags:
+        - destroy
+
+    - name: Generate .env file from template
+      ansible.builtin.template:
+        src: templates/redmine.env.j2
+        dest: ".env"
+        mode: '0644'
+
+    - name: Check if .env exists on server
+      ansible.builtin.stat:
+        path: "{{ redmine_env_file }}"
+      register: env_file_stat
+
+    - name: Pull Redmine image
+      community.docker.docker_image:
+        name: redmine
+        source: pull
+
+    - name: Launch Redmine container
+      community.docker.docker_container:
+        name: redmine
+        image: redmine
+        ports:
+          - "8080:3000"
+        volumes:
+          - "/usr/src/redmine/files:/usr/src/redmine/public/plugin_assets"
+        env_file: ".env"
+        state: started
+
+- name: Install and start DataDog Agent
+  hosts: webservers
+  become: true
+  roles:
+    - { role: datadog.datadog, become: true }
+  tags: monitoring

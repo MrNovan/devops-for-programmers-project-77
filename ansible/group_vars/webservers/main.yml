@@ -1,0 +1,10 @@
+redmine_port: 8080
+redmine_image: "redmine"
+redmine_env_file: "/opt/redmine/.env"
+redmine_db_mysql: "rc1d-d2uq7n4fb55876u0.mdb.yandexcloud.net"
+redmine_db_port: "3306"
+redmine_db_username: "user1"
+redmine_db_database: "db1"
+datadog_api_key: "{{ vault_datadog_api_key }}"
+rails_env: "production"
+datadog_http_checks_enabled: true

@@ -8,4 +8,3 @@ cat <<EOF > terraform/terraform.auto.tfvars.json
   "cloud_id": "b1ga7bs7bhi8j18avv94",
   "folder_id": "b1gd31b1da4n6mjmjtub"
 }
-EOF

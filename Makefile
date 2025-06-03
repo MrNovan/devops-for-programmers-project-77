@@ -2,6 +2,7 @@
 
 # === Настройки ===
 TF_DIR = terraform
+ANSIBLE_DIR = ansible
 
 # === Цели ===
 
@@ -24,3 +25,9 @@ clean:
 
 gen-tfvars:
 	./generate-tfvars.sh
+
+ansible-deps:
+	cd $(ANSIBLE_DIR) && ansible-galaxy install -r requirements.yml
+
+deploy:
+	cd $(ANSIBLE_DIR) && ansible-playbook playbook.yml -i inventory/hosts.ini --ask-vault-pass
