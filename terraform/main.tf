@@ -1,15 +1,18 @@
 # terraform/main.tf
 
 # --- Сеть ---
-resource "yandex_vpc_network" "app-network" {
-  name = "app-network"
+resource "yandex_vpc_network" "net" {
+  # name = "tfhexlet"
+  name = var.network_name
 }
 
-resource "yandex_vpc_subnet" "app-subnet" {
-  name           = "app-subnet"
+# подсеть
+
+resource "yandex_vpc_subnet" "subnet" {
+  name           = var.subnet_name
   zone           = "ru-central1-a"
-  network_id     = yandex_vpc_network.app-network.id
-  v4_cidr_blocks = ["192.168.10.0/24"]
+  network_id     = yandex_vpc_network.net.id
+  v4_cidr_blocks = ["192.168.192.0/24"]
 }
 
 # --- Виртуальные машины ---
@@ -67,124 +70,124 @@ data "template_cloudinit_config" "web-server-config" {
 }
 
 # --- Целевая группа для балансировщика ---
-resource "yandex_alb_target_group" "app-target-group" {
-  name      = "app-target-group"
+resource "yandex_alb_target_group" "target_group" {
+  name      = "my-target-group"
+  folder_id = var.yc_folder_id
 
-  dynamic "target" {
-    for_each = yandex_compute_instance.web-server.*.network_interface.0.ip_address
-    content {
-      subnet_id = yandex_vpc_subnet.app-subnet.id
-      ip_address   = target.value
-    }
+  target {
+    subnet_id  = yandex_vpc_subnet.subnet.id
+    ip_address = yandex_compute_instance.vm1.network_interface.0.ip_address
+  }
+
+  target {
+    subnet_id  = yandex_vpc_subnet.subnet.id
+    ip_address = yandex_compute_instance.vm2.network_interface.0.ip_address
   }
 }
 
 # --- Группа бэкендов ---
-resource "yandex_alb_backend_group" "app-backend-group" {
-  name = "app-backend-group"
+resource "yandex_alb_backend_group" "test-backend-group" {
+  name = "my-backend-group"
 
   http_backend {
-    name = "web-server-be"
-    backend_weight = 1
-
-    target {
-      ip_address = yandex_compute_instance.web-server[0].network_interface.0.ip_address
-      subnet_id  = yandex_vpc_subnet.app-subnet.id
-    }
-
-    port {
-      value = 80
-    }
-
-    http2 = false
-
-    load_balancing_config {
-      panic_threshold = 90
-    }
+    name             = "test-http-backend"
+    weight           = 1
+    port             = 80
+    target_group_ids = ["${yandex_alb_target_group.target_group.id}"]
 
     healthcheck {
-      timeout             = "10s"
-      interval            = "2s"
-      healthy_threshold   = 2
-      unhealthy_threshold = 2
+      timeout  = "1s"
+      interval = "1s"
       http_healthcheck {
-        path                = "/"
+        path = "/"
       }
+      healthcheck_port = 80
     }
   }
 }
 
 # --- HTTP-роутер ---
-resource "yandex_alb_http_router" "app-router" {
-  name = "app-router"
+resource "yandex_alb_http_router" "tf-router" {
+  name = "my-http-router"
+
 }
 
-resource "yandex_alb_virtual_host" "app-vhost" {
-  name           = "default-host"
-  http_router_id = yandex_alb_http_router.app-router.id
+# --- Балансировщик нагрузки (HTTPS) ---
+resource "yandex_alb_load_balancer" "test-balancer" {
+  name = "my-load-balancer"
 
-  route {
-    name = "default-route"
-    http_route {
-      match {
-        path = "/"
+  network_id = yandex_vpc_network.net.id
 
-        backend_group {
-          backend_group_id = yandex_alb_backend_group.app-backend-group.id
+  allocation_policy {
+    location {
+      zone_id   = "ru-central1-a"
+      subnet_id = yandex_vpc_subnet.subnet.id
+    }
+  }
+
+  listener {
+    name = "listener"
+    endpoint {
+      address {
+        external_ipv4_address {
+        }
+      }
+      ports = [443]
+    }
+    tls {
+      default_handler {
+        certificate_ids = ["fpq1j2b0a17o9l6vpq1o"]
+        http_handler {
+          http_router_id = yandex_alb_http_router.tf-router.id
         }
       }
     }
   }
 }
 
-# --- Балансировщик нагрузки (HTTPS) ---
-resource "yandex_lb_listener" "app-listener" {
-  name        = "app-listener"
-  network_id  = yandex_vpc_network.net.id
-  ip_version  = "ipv4"
-
-  external_address_spec {
-    ip_version = "ipv4"
-  }
-
-  http_router_id = yandex_alb_http_router.app-router.id
-}
-
 # --- База данных PostgreSQL ---
-resource "yandex_mdb_postgresql_cluster" "app-db" {
-  name        = "app-db"
+resource "yandex_mdb_postgresql_cluster" "dbcluster" {
+  name        = "tfhexlet"
   environment = "PRESTABLE"
-  network_id  = yandex_vpc_network.app-network.id
+  network_id  = yandex_vpc_network.net.id
+  depends_on  = [yandex_vpc_network.net, yandex_vpc_subnet.subnet]
 
   config {
-    version = "14"
-
+    version = var.yc_postgresql_version
     resources {
       resource_preset_id = "s2.micro"
-      disk_size          = 10
-      disk_type_id       = "network-hdd"
+      disk_type_id       = "network-ssd"
+      disk_size          = 15
     }
+    postgresql_config = {
+      max_connections = 100
+    }
+  }
+
+  maintenance_window {
+    type = "WEEKLY"
+    day  = "SAT"
+    hour = 12
   }
 
   host {
     zone      = "ru-central1-a"
-    subnet_id = yandex_vpc_subnet.app-subnet.id
+    subnet_id = yandex_vpc_subnet.subnet.id
   }
 }
 
-resource "yandex_mdb_postgresql_database" "app-db-main" {
-  cluster_id = yandex_mdb_postgresql_cluster.app-db.id
-  name       = "app_db"
-  owner      = "pg-user"
+resource "yandex_mdb_postgresql_user" "dbuser" {
+  cluster_id = yandex_mdb_postgresql_cluster.dbcluster.id
+  name       = var.db_user
+  password   = var.db_password
+  depends_on = [yandex_mdb_postgresql_cluster.dbcluster]
 }
 
-resource "yandex_mdb_postgresql_user" "pg-user" {
-  name     = "pg-user"
-  password = "your-secret-password"
-  cluster_id = yandex_mdb_postgresql_cluster.app-db.id
-
-  permission {
-    database_name = yandex_mdb_postgresql_database.app-db-main.name
-    roles         = ["OWNER"]
-  }
+resource "yandex_mdb_postgresql_database" "db" {
+  cluster_id = yandex_mdb_postgresql_cluster.dbcluster.id
+  name       = var.db_database
+  owner      = yandex_mdb_postgresql_user.dbuser.name
+  lc_collate = "en_US.UTF-8"
+  lc_type    = "en_US.UTF-8"
+  depends_on = [yandex_mdb_postgresql_cluster.dbcluster]
 }
