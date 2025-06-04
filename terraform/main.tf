@@ -85,8 +85,9 @@ resource "yandex_alb_backend_group" "app-backend-group" {
 
   http_backend {
     name = "web-server-be"
+    backend_weight = 1
 
-    targets {
+    target {
       ip_address = yandex_compute_instance.web-server[0].network_interface.0.ip_address
       subnet_id  = yandex_vpc_subnet.app-subnet.id
     }
@@ -95,9 +96,10 @@ resource "yandex_alb_backend_group" "app-backend-group" {
       value = 80
     }
 
-    http2                 = false
+    http2 = false
+
     load_balancing_config {
-      panic_threshold     = 90
+      panic_threshold = 90
     }
 
     healthcheck {
