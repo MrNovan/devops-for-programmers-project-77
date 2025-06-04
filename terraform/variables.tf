@@ -12,7 +12,7 @@ variable "folder_id" {
 }
 
 variable "ssh_pub" {
-  type    = string
+  type = string
 }
 
 variable "db_user" {

@@ -36,16 +36,15 @@ resource "yandex_compute_instance" "vm" {
   }
 
   network_interface {
-    subnet_id = yandex_vpc_subnet.subnet.id
+    subnet_id  = yandex_vpc_subnet.subnet.id
     ip_address = "192.168.10.1${count.index}"
     nat        = true
   }
 
   metadata = {
-    ssh-keys = "ubuntu:${var.ssh_pub}"
+    ssh-keys  = "ubuntu:${var.ssh_pub}"
     user_data = data.template_cloudinit_config.web-server-config[count.index].rendered
   }
-
   
 }
 
@@ -53,12 +52,12 @@ resource "yandex_compute_instance" "vm" {
 data "template_cloudinit_config" "web-server-config" {
   count = 2
 
-  gzip = true
+  gzip          = true
   base64_encode = true
 
   part {
     content_type = "text/x-shellscript"
-    content = <<-EOF
+    content      = <<-EOF
       #!/bin/bash
       sudo apt update -y
       sudo apt install -y nginx
@@ -71,7 +70,7 @@ data "template_cloudinit_config" "web-server-config" {
 
 # --- Целевая группа для балансировщика ---
 resource "yandex_alb_target_group" "target_group" {
-  name      = "my-target-group"
+  name = "my-target-group"
 
   dynamic "target" {
     for_each = yandex_compute_instance.vm.*.network_interface.0.ip_address
