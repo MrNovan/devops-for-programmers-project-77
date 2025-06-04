@@ -16,10 +16,10 @@ resource "yandex_vpc_subnet" "subnet" {
 }
 
 # --- Виртуальные машины ---
-resource "yandex_compute_instance" "web-server" {
+resource "yandex_compute_instance" "vm" {
   count = 2
 
-  name = "web-server-${count.index}"
+  name = "vm${count.index}"
   zone = "ru-central1-a"
 
   resources {
@@ -36,7 +36,7 @@ resource "yandex_compute_instance" "web-server" {
   }
 
   network_interface {
-    subnet_id = yandex_vpc_subnet.app-subnet.id
+    subnet_id = yandex_vpc_subnet.subnet.id
     ip_address = "192.168.10.1${count.index}"
     nat        = true
   }
