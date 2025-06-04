@@ -74,12 +74,13 @@ resource "yandex_alb_target_group" "target_group" {
   name      = "my-target-group"
   folder_id = var.yc_folder_id
 
- dynamic "target" {
+  dynamic "target" {
     for_each = yandex_compute_instance.vm.*.network_interface.0.ip_address
     content {
       subnet_id  = yandex_vpc_subnet.subnet.id
       ip_address = target.value
     }
+  }
 }
 
 # --- Группа бэкендов ---
