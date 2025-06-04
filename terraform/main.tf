@@ -72,7 +72,6 @@ data "template_cloudinit_config" "web-server-config" {
 # --- Целевая группа для балансировщика ---
 resource "yandex_alb_target_group" "target_group" {
   name      = "my-target-group"
-  region = "ru-central1"
 
   dynamic "target" {
     for_each = yandex_compute_instance.vm.*.network_interface.0.ip_address
