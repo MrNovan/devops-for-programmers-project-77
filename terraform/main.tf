@@ -84,13 +84,21 @@ resource "yandex_alb_backend_group" "app-backend-group" {
   name = "app-backend-group"
 
   http_backend {
-    name                  = "web-server-be"
-    port                  = 80
-    target_group_ids       = yandex_alb_target_group.app-target-group.id
+    name = "web-server-be"
+    endpoint {
+      targets {
+        ip_address = yandex_compute_instance.web-server[0].network_interface.0.ip_address
+        subnet_id  = yandex_vpc_subnet.app-subnet.id
+      }
+      port = {
+        value = 80
+      }
+    }
     http2                 = false
     load_balancing_config {
       panic_threshold     = 90
     }
+
     healthcheck {
       timeout             = "10s"
       interval            = "2s"
@@ -98,7 +106,6 @@ resource "yandex_alb_backend_group" "app-backend-group" {
       unhealthy_threshold = 2
       http_healthcheck {
         path                = "/"
-        port                = 80
       }
     }
   }
@@ -116,11 +123,11 @@ resource "yandex_alb_virtual_host" "app-vhost" {
   route {
     name = "default-route"
     http_route {
-      http_match {
-        no_match_action {
-          backend_group {
-            backend_group_id = yandex_alb_backend_group.app-backend-group.id
-          }
+      match {
+        path = "/"
+
+        backend_group {
+          backend_group_id = yandex_alb_backend_group.app-backend-group.id
         }
       }
     }
@@ -144,7 +151,7 @@ resource "yandex_lb_listener" "app-listener" {
 resource "yandex_mdb_postgresql_cluster" "app-db" {
   name        = "app-db"
   environment = "PRESTABLE"
-  network_id  = yandex_vpc_network.net.id
+  network_id  = yandex_vpc_network.app-network.id
 
   config {
     version = "14"
@@ -158,7 +165,7 @@ resource "yandex_mdb_postgresql_cluster" "app-db" {
 
   host {
     zone      = "ru-central1-a"
-    subnet_id = yandex_vpc_subnet.subnet-a.id
+    subnet_id = yandex_vpc_subnet.app-subnet.id
   }
 }
 
