@@ -1,6 +1,6 @@
 # terraform/outputs.tf
 output "lb_ip" {
-  value = yandex_lb_listener.test-balancer.external_address_spec[0].address
+  value = yandex_alb_load_balancer.test-balancer.external_address_spec[0].address
 }
 
 output "db_host" {
