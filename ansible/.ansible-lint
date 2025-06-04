@@ -1,3 +1,0 @@
-# .ansible-lint
-skip_list:
-  - "no-vars-in-tasks"
