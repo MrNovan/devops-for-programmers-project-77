@@ -37,7 +37,7 @@
         name: redmine
         state: absent
         force_kill: true
-      environment:
+      vars:
         ansible_python_interpreter: /usr/bin/python3
       tags:
         - destroy
