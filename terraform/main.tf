@@ -45,7 +45,6 @@ resource "yandex_compute_instance" "vm" {
     ssh-keys  = "ubuntu:${var.ssh_pub}"
     user_data = data.template_cloudinit_config.web-server-config[count.index].rendered
   }
-  
 }
 
 # --- Автоматическая настройка ВМ ---
